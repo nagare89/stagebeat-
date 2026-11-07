@@ -19,10 +19,16 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK Location and Permissions
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android Licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Set Execution Permissions and local.properties
         run: |
           chmod +x android/gradlew
-          echo "sdk.dir=/usr/local/lib/android/sdk" > android/local.properties
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
       - name: Build Android Debug APK
         working-directory: android
