@@ -1,0 +1,8 @@
+{
+  "appId": "com.stagebeat.drummer",
+  "appName": "StageBeat",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
