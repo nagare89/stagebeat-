@@ -9,10 +9,6 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
 
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -23,24 +19,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install Dependencies
-        run: npm install --include=dev
-
-      - name: Build Web Application
-        run: npm run build
-
-      - name: Prepare Android Assets Directory
-        run: mkdir -p android/app/src/main/assets/public
-
-      - name: Copy Web Assets to Capacitor Android
-        run: npx @capacitor/cli copy android --verbose
-
-      - name: Configure Android SDK Location and Permissions
+      - name: Setup Android SDK Location and Permissions
         run: |
           chmod +x android/gradlew
           echo "sdk.dir=/usr/local/lib/android/sdk" > android/local.properties

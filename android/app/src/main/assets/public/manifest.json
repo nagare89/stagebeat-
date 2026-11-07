@@ -1,0 +1,18 @@
+{
+  "name": "StageBeat - Worship Drummer Companion",
+  "short_name": "StageBeat",
+  "description": "Aplikasi Stage List, Metronom Presisi, dan Audio Player untuk Drummer Pelayanan",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/drum-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
