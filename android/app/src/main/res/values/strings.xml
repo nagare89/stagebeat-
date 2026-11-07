@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">StageBeat</string>
+    <string name="title_activity_main">StageBeat</string>
+    <string name="package_name">com.stagebeat.drummer</string>
+    <string name="custom_url_scheme">com.stagebeat.drummer</string>
+</resources>
