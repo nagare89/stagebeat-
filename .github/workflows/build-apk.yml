@@ -29,12 +29,6 @@ jobs:
       - name: Install Node Dependencies
         run: npm install
 
-      - name: Build Web Application
-        run: npm run build
-
-      - name: Copy Web Assets to Capacitor Android
-        run: npx cap copy android
-
       - name: Set Execution Permissions
         run: chmod +x android/gradlew
 
