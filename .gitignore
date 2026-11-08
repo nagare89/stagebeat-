@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Build outputs & APKs
+*.apk
+*.zip
+release_apk/

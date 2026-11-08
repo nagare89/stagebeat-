@@ -6,7 +6,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { 
   X, Play, Square, ChevronLeft, ChevronRight, 
   Volume2, VolumeX, Radio, Sparkles, Music, 
-  Minus, Plus, ShieldCheck
+  Minus, Plus, ShieldCheck, Zap
 } from 'lucide-react';
 import { AudioPracticePlayer } from './AudioPracticePlayer';
 
@@ -33,6 +33,20 @@ export const StageModeView: React.FC<Props> = ({
   const [isMuted, setIsMuted] = useState(false);
   const [showAudioDrawer, setShowAudioDrawer] = useState(false);
 
+  // Auto start metronome preference (default: true for instant live playing)
+  const [autoStartMetronome, setAutoStartMetronome] = useState<boolean>(() => {
+    const saved = localStorage.getItem('stagebeat_auto_start_metronome');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleToggleAutoStart = () => {
+    setAutoStartMetronome((prev) => {
+      const next = !prev;
+      localStorage.setItem('stagebeat_auto_start_metronome', String(next));
+      return next;
+    });
+  };
+
   // Keep screen awake
   const { isActive: isWakeLockActive } = useWakeLock(true);
 
@@ -45,7 +59,7 @@ export const StageModeView: React.FC<Props> = ({
   const nextItem: SetlistItem | undefined = setlist.items[currentIndex + 1];
   const nextSong: Song | undefined = nextItem ? songsMap.get(nextItem.songId) : undefined;
 
-  // Sync song attributes when navigating
+  // Sync song attributes when navigating or entering stage mode
   useEffect(() => {
     if (currentSong) {
       const bpm = currentItem?.customBpm || currentSong.bpm;
@@ -54,14 +68,21 @@ export const StageModeView: React.FC<Props> = ({
       metronome.setBpm(bpm);
       metronome.setTimeSignature(currentSong.timeSignature);
 
-      // Stop metronome automatically when switching song to avoid tempo confusion
-      if (metronome.getIsRunning()) {
+      if (autoStartMetronome) {
+        // Automatically start / restart metronome for instant groove
         metronome.stop();
-        setIsMetronomeRunning(false);
-        setCurrentBeat(null);
+        metronome.start(bpm);
+        setIsMetronomeRunning(true);
+      } else {
+        // If auto-start disabled, stop metronome when switching songs to avoid tempo confusion
+        if (metronome.getIsRunning()) {
+          metronome.stop();
+          setIsMetronomeRunning(false);
+          setCurrentBeat(null);
+        }
       }
     }
-  }, [currentIndex, currentSong, currentItem]);
+  }, [currentIndex, currentSong, currentItem, autoStartMetronome]);
 
   // Metronome beat callback for visual flash
   useEffect(() => {
@@ -200,8 +221,23 @@ export const StageModeView: React.FC<Props> = ({
           </span>
         </div>
 
-        {/* Right: Wake lock indicator */}
+        {/* Right: Controls & Indicators */}
         <div className="flex items-center gap-2">
+          {/* Auto-Metronome Toggle */}
+          <button
+            onClick={handleToggleAutoStart}
+            title={autoStartMetronome ? 'Auto-Start Metronome Aktif (Klik untuk Matikan)' : 'Auto-Start Metronome Mati (Klik untuk Aktifkan)'}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-mono font-bold transition ${
+              autoStartMetronome
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                : 'bg-neutral-900 text-neutral-500 border-neutral-800 hover:text-neutral-300'
+            }`}
+          >
+            <Zap className={`w-3.5 h-3.5 ${autoStartMetronome ? 'fill-amber-400 text-amber-400' : 'text-neutral-500'}`} />
+            <span className="hidden sm:inline">Auto-Click:</span>
+            <span>{autoStartMetronome ? 'ON' : 'OFF'}</span>
+          </button>
+
           <div 
             title="Layar tetap menyala di panggung"
             className="flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-full bg-neutral-900 border border-neutral-800 text-emerald-400"
