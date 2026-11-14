@@ -3,6 +3,7 @@ import type { AppSettings, MetronomeSound } from '../types';
 import { X, Volume2, ShieldCheck, Download, Upload, Smartphone, Check, Sparkles, Database, Cloud, RefreshCw } from 'lucide-react';
 import { metronome } from '../utils/metronome';
 import { cloudSyncService } from '../services/supabase';
+import { aiCueService } from '../services/aiCueGenerator';
 
 interface Props {
   settings: AppSettings;
@@ -157,6 +158,51 @@ export const SettingsModal: React.FC<Props> = ({
                   </span>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* AI Drum Cue Generator (Google Gemini) */}
+          <div className="p-4 rounded-xl bg-neutral-950 border border-purple-900/40 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-purple-400 font-bold text-xs uppercase tracking-wider">
+                <Sparkles className="w-4 h-4" />
+                <span>AI Drum Cue Generator (Google Gemini)</span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">
+                100% Gratis
+              </span>
+            </div>
+
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Membuat notasi struktur & cue drum otomatis langsung dari link video YouTube atau file audio aransemen yang diulik.
+            </p>
+
+            <div>
+              <label className="block text-[11px] font-mono text-neutral-400 mb-1">
+                Google Gemini API Key
+              </label>
+              <input
+                type="password"
+                value={localSettings.geminiApiKey || ''}
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  setLocalSettings((prev) => ({ ...prev, geminiApiKey: val }));
+                  aiCueService.setStoredApiKey(val);
+                }}
+                placeholder="AIzaSy..."
+                className="w-full bg-neutral-900 border border-neutral-750 text-neutral-200 font-mono text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500"
+              />
+              <p className="text-[11px] text-neutral-500 mt-1.5 flex items-center gap-1">
+                <span>Dapatkan kunci gratis dari Google di</span>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-purple-400 hover:text-purple-300 font-medium underline"
+                >
+                  aistudio.google.com/app/apikey ↗
+                </a>
+              </p>
             </div>
           </div>
 

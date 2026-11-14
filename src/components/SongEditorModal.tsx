@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import type { Song, TimeSignature } from '../types';
-import { Sparkles, Music, Radio, X } from 'lucide-react';
+import { Sparkles, Music, Radio, X, Upload, AlertCircle, CheckCircle2, Loader2, Key } from 'lucide-react';
 import { YoutubeIcon } from './icons';
+import { aiCueService } from '../services/aiCueGenerator';
 
 interface Props {
   song?: Song | null;
@@ -35,7 +36,72 @@ export const SongEditorModal: React.FC<Props> = ({ song, onSave, onClose }) => {
   const [key, setKey] = useState(song?.key || 'G');
   const [drumNotes, setDrumNotes] = useState(song?.drumNotes || '');
   const [youtubeUrl, setYoutubeUrl] = useState(song?.youtubeUrl || '');
-  const [audioUrl] = useState(song?.audioUrl || '');
+  const [audioUrl, setAudioUrl] = useState(song?.audioUrl || '');
+
+  // AI & Audio file state
+  const [selectedAudioFile, setSelectedAudioFile] = useState<File | null>(null);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSuccessMessage, setAiSuccessMessage] = useState<string | null>(null);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const hasMediaSource = Boolean(youtubeUrl.trim() || selectedAudioFile || audioUrl);
+
+  const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedAudioFile(file);
+      setAudioUrl(URL.createObjectURL(file));
+      setAiError(null);
+      setAiSuccessMessage(null);
+    }
+  };
+
+  const handleStartAiGeneration = async (customKey?: string) => {
+    const keyToUse = customKey || aiCueService.getStoredApiKey();
+    if (!keyToUse) {
+      setShowApiKeyModal(true);
+      return;
+    }
+
+    if (!hasMediaSource) {
+      setAiError('Masukkan link YouTube versi yang diulik atau upload audio terlebih dahulu.');
+      return;
+    }
+
+    setIsGeneratingAi(true);
+    setAiError(null);
+    setAiSuccessMessage(null);
+
+    try {
+      const result = await aiCueService.generateCue({
+        youtubeUrl: youtubeUrl.trim() || undefined,
+        audioFile: selectedAudioFile || undefined,
+        songTitle: title.trim() || undefined,
+        artist: artist.trim() || undefined,
+        customApiKey: keyToUse,
+      });
+
+      // Update values from AI
+      setBpm(result.bpm);
+      setTimeSignature(result.timeSignature);
+      if (result.key) setKey(result.key);
+      if (result.drumNotes) setDrumNotes(result.drumNotes);
+      if (!title.trim() && result.detectedTitle) setTitle(result.detectedTitle);
+      if (!artist.trim() && result.detectedArtist) setArtist(result.detectedArtist);
+
+      setAiSuccessMessage('✅ Berhasil! Cue Sheet, BPM & Birama sudah diisi sesuai aransemen video/audio tersebut.');
+      setShowApiKeyModal(false);
+    } catch (err) {
+      console.error('AI Generation error:', err);
+      const msg = err instanceof Error ? err.message : 'Gagal menghasilkan cue dengan AI.';
+      setAiError(msg);
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
 
   // Tap tempo
   const [tapTimes, setTapTimes] = useState<number[]>([]);
@@ -130,6 +196,117 @@ export const SongEditorModal: React.FC<Props> = ({ song, onSave, onClose }) => {
                 placeholder="Contoh: Bethel Music / JPCC Worship"
                 className="w-full bg-neutral-950 border border-neutral-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-500"
               />
+            </div>
+          </div>
+
+          {/* Hybrid Audio Section & AI Source */}
+          <div className="space-y-3 p-4 rounded-xl bg-neutral-950 border border-neutral-800">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral-200 uppercase tracking-wider flex items-center gap-1.5">
+                <YoutubeIcon className="w-4 h-4 text-red-500" />
+                Sumber Aransemen Video / Audio yang Diulik
+              </span>
+              <span className="text-[11px] font-mono text-neutral-400">
+                Wajib untuk AI Generator
+              </span>
+            </div>
+
+            {/* YouTube Link */}
+            <div>
+              <label className="block text-[11px] text-neutral-400 mb-1">
+                Link YouTube (Versi Spesifik / Live / Rekaman GR)
+              </label>
+              <input
+                type="url"
+                value={youtubeUrl}
+                onChange={(e) => {
+                  setYoutubeUrl(e.target.value);
+                  setAiError(null);
+                  setAiSuccessMessage(null);
+                }}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="w-full bg-neutral-900 border border-neutral-750 text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm focus:outline-none focus:border-red-500"
+              />
+            </div>
+
+            {/* Local Audio File Upload */}
+            <div className="pt-2 border-t border-neutral-850 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleAudioFileChange}
+                  accept="audio/*"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold border border-neutral-700 transition"
+                >
+                  <Upload className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Pilih File Audio (MP3/WAV/Voice Note)</span>
+                </button>
+              </div>
+
+              {selectedAudioFile && (
+                <span className="text-xs font-mono text-emerald-400 truncate max-w-[280px]">
+                  🎵 {selectedAudioFile.name}
+                </span>
+              )}
+            </div>
+
+            {/* AI Generator Action Box */}
+            <div className="mt-3 pt-3 border-t border-neutral-850">
+              <button
+                type="button"
+                onClick={() => handleStartAiGeneration()}
+                disabled={!hasMediaSource || isGeneratingAi}
+                className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg ${
+                  hasMediaSource && !isGeneratingAi
+                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white shadow-purple-500/20 active:scale-98'
+                    : 'bg-neutral-850 text-neutral-500 border border-neutral-800 cursor-not-allowed opacity-60'
+                }`}
+              >
+                {isGeneratingAi ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>AI Sedang Menganalisis Aransemen Video/Audio...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-amber-300" />
+                    <span>✨ Buat Cue Otomatis dari Aransemen Ini (AI)</span>
+                  </>
+                )}
+              </button>
+
+              {/* Informative Guidance */}
+              {!hasMediaSource ? (
+                <p className="text-[11px] text-amber-400/90 mt-2 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Masukkan link YouTube versi yang diulik atau pilih file audio di atas agar AI menganalisis aransemen yang tepat.</span>
+                </p>
+              ) : (
+                <p className="text-[11px] text-neutral-400 mt-2 flex items-center gap-1.5">
+                  <span>🎯 AI akan membedah BPM, birama, dan notasi struktur drum persis sesuai versi video/audio di atas.</span>
+                </p>
+              )}
+
+              {/* AI Status messages */}
+              {aiError && (
+                <div className="mt-2.5 p-2.5 rounded-lg bg-red-950/60 border border-red-500/40 text-red-300 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{aiError}</span>
+                </div>
+              )}
+
+              {aiSuccessMessage && (
+                <div className="mt-2.5 p-2.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{aiSuccessMessage}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -246,23 +423,6 @@ export const SongEditorModal: React.FC<Props> = ({ song, onSave, onClose }) => {
             />
           </div>
 
-          {/* Hybrid Audio Section */}
-          <div className="space-y-3 pt-2 border-t border-neutral-800">
-            <div>
-              <label className="block text-xs font-semibold text-neutral-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                <YoutubeIcon className="w-4 h-4 text-red-500" />
-                Link Video / Audio YouTube (Untuk Latihan & Referensi)
-              </label>
-              <input
-                type="url"
-                value={youtubeUrl}
-                onChange={(e) => setYoutubeUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full bg-neutral-950 border border-neutral-700 text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm focus:outline-none focus:border-red-500"
-              />
-            </div>
-          </div>
-
           {/* Modal Footer */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-neutral-800">
             <button
@@ -280,6 +440,75 @@ export const SongEditorModal: React.FC<Props> = ({ song, onSave, onClose }) => {
             </button>
           </div>
         </form>
+
+        {/* Quick API Key Setup Modal */}
+        {showApiKeyModal && (
+          <div className="absolute inset-0 z-20 bg-black/90 backdrop-blur-sm rounded-2xl p-6 flex flex-col justify-center items-center text-center animate-in fade-in duration-150">
+            <div className="max-w-md w-full p-6 bg-neutral-900 border border-purple-500/40 rounded-2xl shadow-2xl text-left space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-purple-400 flex items-center gap-2">
+                  <Key className="w-4 h-4" />
+                  Masukkan Google Gemini API Key
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyModal(false)}
+                  className="text-neutral-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-xs text-neutral-300 leading-relaxed">
+                Fitur AI Drum Cue membutuhkan Gemini API Key dari Google (<strong>100% Gratis Selamanya</strong>). Kunci ini akan disimpan di perangkat Anda.
+              </p>
+
+              <div>
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="Tempel kunci AIzaSy... di sini"
+                  className="w-full bg-neutral-950 border border-neutral-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:border-purple-500"
+                />
+                <p className="text-[11px] text-neutral-500 mt-1.5">
+                  Belum punya? Dapatkan instan gratis di{' '}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-purple-400 underline font-medium"
+                  >
+                    aistudio.google.com/app/apikey ↗
+                  </a>
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyModal(false)}
+                  className="px-3.5 py-2 rounded-xl text-neutral-400 hover:text-white text-xs font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (apiKeyInput.trim()) {
+                      aiCueService.setStoredApiKey(apiKeyInput.trim());
+                      handleStartAiGeneration(apiKeyInput.trim());
+                    }
+                  }}
+                  disabled={!apiKeyInput.trim()}
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold transition shadow-lg shadow-purple-600/30"
+                >
+                  Simpan & Lanjutkan Generate
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

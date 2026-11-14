@@ -44,4 +44,5 @@ export interface AppSettings {
   theme: 'dark' | 'oled';
   supabaseUrl?: string;
   supabaseAnonKey?: string;
+  geminiApiKey?: string;
 }
