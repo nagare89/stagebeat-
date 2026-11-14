@@ -84,14 +84,63 @@ export const aiCueService = {
       );
     }
 
-    // Try multiple available Gemini models (2.5-flash -> 1.5-flash)
-    const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+    // Dynamic discovery of supported models + resilient fallback endpoints
+    const candidateEndpoints: string[] = [];
+
+    // Try dynamic discovery first
+    try {
+      for (const apiVer of ['v1beta', 'v1']) {
+        const listUrl = `https://generativelanguage.googleapis.com/${apiVer}/models?key=${apiKey}`;
+        const listRes = await fetch(listUrl, {
+          headers: { 'x-goog-api-key': apiKey },
+        });
+        if (listRes.ok) {
+          const listData = await listRes.json();
+          const validModels: Array<{ name: string }> = (listData.models || []).filter(
+            (m: { supportedGenerationMethods?: string[] }) =>
+              m.supportedGenerationMethods?.includes('generateContent')
+          );
+
+          // Prioritize flash models
+          validModels.sort((a, b) => {
+            const aIsFlash = a.name.includes('flash') ? -1 : 1;
+            const bIsFlash = b.name.includes('flash') ? -1 : 1;
+            return aIsFlash - bIsFlash;
+          });
+
+          for (const m of validModels) {
+            const cleanName = m.name.replace(/^models\//, '');
+            candidateEndpoints.push(
+              `https://generativelanguage.googleapis.com/${apiVer}/models/${cleanName}:generateContent?key=${apiKey}`
+            );
+          }
+          if (candidateEndpoints.length > 0) break;
+        }
+      }
+    } catch (discoveryErr) {
+      console.warn('Dynamic model discovery failed, using standard fallbacks:', discoveryErr);
+    }
+
+    // Standard fallback endpoints across v1 and v1beta
+    const standardFallbacks = [
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    ];
+
+    for (const fb of standardFallbacks) {
+      if (!candidateEndpoints.includes(fb)) {
+        candidateEndpoints.push(fb);
+      }
+    }
+
     let lastError: unknown = null;
 
-    for (const model of models) {
+    for (const endpoint of candidateEndpoints) {
       try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        
         const contentsParts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [];
 
         // If audio file is provided, attach as multimodal inline audio
@@ -164,6 +213,7 @@ ATURAN PENULISAN CUE SHEET (drumNotes):
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
           },
           body: JSON.stringify(requestBody),
         });
@@ -203,7 +253,7 @@ ATURAN PENULISAN CUE SHEET (drumNotes):
         };
       } catch (err) {
         lastError = err;
-        console.warn(`Model ${model} failed, attempting next if available...`, err);
+        console.warn(`Endpoint ${endpoint} failed, trying next candidate...`, err);
       }
     }
 
